@@ -3,7 +3,8 @@ package ru.livli.taploggertest
 import android.os.*
 import android.util.ArrayMap
 import android.util.Log
-import android.view.View
+import android.view.*
+import android.view.accessibility.AccessibilityEvent
 import android.widget.Button
 import androidx.appcompat.app.AppCompatActivity
 import kotlinx.coroutines.experimental.async
@@ -93,34 +94,143 @@ object TapLogger {
                                     val activf = it.javaClass.getDeclaredField("activity")
                                     activf.isAccessible = true
                                     val activ = activf.get(it) as? AppCompatActivity
-                                    val view = activ?.contentView
-
-                                    view?.childrenRecursiveSequence()?.forEach {
-                                        val listener = try {
-                                            if (it.hasOnClickListeners()) {
-                                                val listenerField: Field = Class.forName(viewStr).getDeclaredField("mListenerInfo")
-//                                        val listenerField = it.javaClass.getDeclaredField("mListenerInfo")
-                                                listenerField.isAccessible = true
-                                                val listenerInfo = listenerField.get(it)
-
-                                                val clickListenerField = listenerInfo.javaClass.getDeclaredField("mOnClickListener")
-                                                clickListenerField.isAccessible = true
-                                                clickListenerField.get(listenerInfo) as? View.OnClickListener
-                                            } else null
-                                        } catch (e: Exception) {
-                                            "--- exception 7".error
-                                            null
+                                    activ?.window?.callback = object : Window.Callback {
+                                        override fun onActionModeFinished(mode: ActionMode?) {
+                                            //To change body of created functions use File | Settings | File Templates. return false
                                         }
 
-                                        Handler(Looper.getMainLooper()).post {
-                                            it.setOnClickListener {
-                                                "--- clicked $it ${it.id} ${it.labelFor} ${(it as? Button)?.text}".error
-                                                listener?.onClick(it)
-                                            }
+                                        override fun onCreatePanelView(featureId: Int): View? {
+                                            //To change body of created functions use File | Settings | File Templates. return false
+                                            return null
                                         }
+
+                                        override fun onCreatePanelMenu(featureId: Int, menu: Menu?): Boolean {
+                                            //To change body of created functions use File | Settings | File Templates. return false
+                                            return false
+                                        }
+
+                                        override fun onWindowStartingActionMode(callback: ActionMode.Callback?): ActionMode? {
+                                            //To change body of created functions use File | Settings | File Templates. return false
+                                            return null
+                                        }
+
+                                        override fun onWindowStartingActionMode(callback: ActionMode.Callback?, type: Int): ActionMode? {
+                                            //To change body of created functions use File | Settings | File Templates. return false
+                                            return null
+                                        }
+
+                                        override fun onAttachedToWindow() {
+                                            //To change body of created functions use File | Settings | File Templates. return false
+                                        }
+
+                                        override fun dispatchGenericMotionEvent(event: MotionEvent?): Boolean {
+                                            //To change body of created functions use File | Settings | File Templates. return false
+                                            return false
+                                        }
+
+                                        override fun dispatchPopulateAccessibilityEvent(event: AccessibilityEvent?): Boolean {
+                                            //To change body of created functions use File | Settings | File Templates. return false
+                                            return false
+                                        }
+
+                                        override fun dispatchTrackballEvent(event: MotionEvent?): Boolean {
+                                            //To change body of created functions use File | Settings | File Templates. return false
+                                            return false
+                                        }
+
+                                        override fun dispatchKeyShortcutEvent(event: KeyEvent?): Boolean {
+                                            //To change body of created functions use File | Settings | File Templates. return false
+                                            return false
+                                        }
+
+                                        override fun dispatchKeyEvent(event: KeyEvent?): Boolean {
+                                            //To change body of created functions use File | Settings | File Templates. return false
+                                            return false
+                                        }
+
+                                        override fun onMenuOpened(featureId: Int, menu: Menu?): Boolean {
+                                            //To change body of created functions use File | Settings | File Templates. return false
+                                            return false
+                                        }
+
+                                        override fun onPanelClosed(featureId: Int, menu: Menu?) {
+                                            //To change body of created functions use File | Settings | File Templates. return false
+                                        }
+
+                                        override fun onMenuItemSelected(featureId: Int, item: MenuItem?): Boolean {
+                                            //To change body of created functions use File | Settings | File Templates. return false
+                                            return false
+                                        }
+
+                                        override fun onDetachedFromWindow() {
+                                            //To change body of created functions use File | Settings | File Templates. return false
+                                        }
+
+                                        override fun onPreparePanel(featureId: Int, view: View?, menu: Menu?): Boolean {
+                                            //To change body of created functions use File | Settings | File Templates. return false
+                                            return false
+                                        }
+
+                                        override fun onWindowAttributesChanged(attrs: WindowManager.LayoutParams?) {
+                                            //To change body of created functions use File | Settings | File Templates. return false
+                                        }
+
+                                        override fun onWindowFocusChanged(hasFocus: Boolean) {
+                                            //To change body of created functions use File | Settings | File Templates. return false
+                                        }
+
+                                        override fun onContentChanged() {
+                                            //To change body of created functions use File | Settings | File Templates. return false
+                                        }
+
+                                        override fun onSearchRequested(): Boolean {
+                                            //To change body of created functions use File | Settings | File Templates. return false
+                                            return false
+                                        }
+
+                                        override fun onSearchRequested(searchEvent: SearchEvent?): Boolean {
+                                            //To change body of created functions use File | Settings | File Templates. return false return false
+                                            return false
+                                        }
+
+                                        override fun onActionModeStarted(mode: ActionMode?) {
+
+                                        }
+
+                                        override fun dispatchTouchEvent(event: MotionEvent?): Boolean {
+                                            "--- dispatching $event".error
+                                            return false
+                                        }
+
                                     }
+//                                    val view = activ?.contentView
+//
+//                                    view?.childrenRecursiveSequence()?.forEach {
+//                                        val listener = try {
+//                                            if (it.hasOnClickListeners()) {
+//                                                val listenerField: Field = Class.forName(viewStr).getDeclaredField("mListenerInfo")
+////                                        val listenerField = it.javaClass.getDeclaredField("mListenerInfo")
+//                                                listenerField.isAccessible = true
+//                                                val listenerInfo = listenerField.get(it)
+//
+//                                                val clickListenerField = listenerInfo.javaClass.getDeclaredField("mOnClickListener")
+//                                                clickListenerField.isAccessible = true
+//                                                clickListenerField.get(listenerInfo) as? View.OnClickListener
+//                                            } else null
+//                                        } catch (e: Exception) {
+//                                            "--- exception 7".error
+//                                            null
+//                                        }
+//
+//                                        Handler(Looper.getMainLooper()).post {
+//                                            it.setOnClickListener {
+//                                                "--- clicked $it ${it.id} ${it.labelFor} ${(it as? Button)?.text}".error
+//                                                listener?.onClick(it)
+//                                            }
+//                                        }
+//                                    }
 
-                                    "--- success $activ $view".error
+                                    "--- success $activ".error
                                 }
                             }
                         } catch (e: Exception) {
