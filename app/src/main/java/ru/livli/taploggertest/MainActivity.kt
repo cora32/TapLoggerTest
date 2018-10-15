@@ -7,7 +7,9 @@ import android.view.*
 import android.view.accessibility.AccessibilityEvent
 import android.widget.Button
 import androidx.appcompat.app.AppCompatActivity
+import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.coroutines.experimental.async
+import kotlinx.coroutines.experimental.delay
 import org.jetbrains.anko.childrenRecursiveSequence
 import org.jetbrains.anko.contentView
 import java.lang.reflect.Field
@@ -17,7 +19,18 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        TapLogger.start()
+
+        tv.setOnClickListener {
+            "--- ORIGINAL click".error
+        }
+
+        async {
+            delay(1000L)
+            TapLogger.start()
+        }.invokeOnCompletion {
+            if (it != null)
+                "--- G ERROR $it".error
+        }
     }
 }
 
@@ -31,12 +44,325 @@ object TapLogger {
 //            false
 //        }
 
-        async {
-            while (true) {
-                dumpQueue()
-                Thread.sleep(1L)
+        val list = object : GestureDetector.OnGestureListener {
+            override fun onShowPress(p0: MotionEvent?) {
+                "--- onShowPress".error
+            }
+
+            override fun onSingleTapUp(p0: MotionEvent?): Boolean {
+                "--- onSingleTapUp".error
+                return false
+            }
+
+            override fun onDown(p0: MotionEvent?): Boolean {
+                "--- onDown".error
+                return false
+            }
+
+            override fun onFling(p0: MotionEvent?, p1: MotionEvent?, p2: Float, p3: Float): Boolean {
+                "--- onFling".error
+                return false
+            }
+
+            override fun onScroll(p0: MotionEvent?, p1: MotionEvent?, p2: Float, p3: Float): Boolean {
+                "--- onScroll".error
+                return false
+            }
+
+            override fun onLongPress(p0: MotionEvent?) {
+                "--- onLongPress".error
+            }
+
+
+        }
+
+
+        val activityThreadClass = Class.forName("android.app.ActivityThread")
+        val activityThread = activityThreadClass.getMethod("currentActivityThread")
+                .invoke(null)
+        val activitiesField = activityThreadClass.getDeclaredField("mActivities")
+        activitiesField.isAccessible = true
+        val activities = activitiesField.get(activityThread) as ArrayMap<*, *>
+        if (activities.isNotEmpty()) {
+//            val activityClient = activities[0]
+            val activityClient = activities.valueAt(0)
+            activityClient?.let {
+                val activityField = activityClient::class.java.getDeclaredField("activity")
+                activityField.isAccessible = true
+                val activity = activityField.get(activityClient) as AppCompatActivity
+                "--- G1".error
+                Handler(Looper.getMainLooper()).post {
+                    val detector = GestureDetector(activity, list)
+                    "--- G2".error
+
+                    activity?.window?.callback = object : Window.Callback {
+                        override fun onActionModeFinished(mode: ActionMode?) {
+                            //To change body of created functions use File | Settings | File Templates. return false
+                        }
+
+                        override fun onCreatePanelView(featureId: Int): View? {
+                            //To change body of created functions use File | Settings | File Templates. return false
+                            return null
+                        }
+
+                        override fun onCreatePanelMenu(featureId: Int, menu: Menu?): Boolean {
+                            //To change body of created functions use File | Settings | File Templates. return false
+                            return false
+                        }
+
+                        override fun onWindowStartingActionMode(callback: ActionMode.Callback?): ActionMode? {
+                            //To change body of created functions use File | Settings | File Templates. return false
+                            return null
+                        }
+
+                        override fun onWindowStartingActionMode(callback: ActionMode.Callback?, type: Int): ActionMode? {
+                            //To change body of created functions use File | Settings | File Templates. return false
+                            return null
+                        }
+
+                        override fun onAttachedToWindow() {
+                            //To change body of created functions use File | Settings | File Templates. return false
+                        }
+
+                        override fun dispatchGenericMotionEvent(event: MotionEvent?): Boolean {
+                            //To change body of created functions use File | Settings | File Templates. return false
+                            return false
+                        }
+
+                        override fun dispatchPopulateAccessibilityEvent(event: AccessibilityEvent?): Boolean {
+                            //To change body of created functions use File | Settings | File Templates. return false
+                            return false
+                        }
+
+                        override fun dispatchTrackballEvent(event: MotionEvent?): Boolean {
+                            //To change body of created functions use File | Settings | File Templates. return false
+                            return false
+                        }
+
+                        override fun dispatchKeyShortcutEvent(event: KeyEvent?): Boolean {
+                            //To change body of created functions use File | Settings | File Templates. return false
+                            return false
+                        }
+
+                        override fun dispatchKeyEvent(event: KeyEvent?): Boolean {
+                            //To change body of created functions use File | Settings | File Templates. return false
+                            return false
+                        }
+
+                        override fun onMenuOpened(featureId: Int, menu: Menu?): Boolean {
+                            //To change body of created functions use File | Settings | File Templates. return false
+                            return false
+                        }
+
+                        override fun onPanelClosed(featureId: Int, menu: Menu?) {
+                            //To change body of created functions use File | Settings | File Templates. return false
+                        }
+
+                        override fun onMenuItemSelected(featureId: Int, item: MenuItem?): Boolean {
+                            //To change body of created functions use File | Settings | File Templates. return false
+                            return false
+                        }
+
+                        override fun onDetachedFromWindow() {
+                            //To change body of created functions use File | Settings | File Templates. return false
+                        }
+
+                        override fun onPreparePanel(featureId: Int, view: View?, menu: Menu?): Boolean {
+                            //To change body of created functions use File | Settings | File Templates. return false
+                            return false
+                        }
+
+                        override fun onWindowAttributesChanged(attrs: WindowManager.LayoutParams?) {
+                            //To change body of created functions use File | Settings | File Templates. return false
+                        }
+
+                        override fun onWindowFocusChanged(hasFocus: Boolean) {
+                            //To change body of created functions use File | Settings | File Templates. return false
+                        }
+
+                        override fun onContentChanged() {
+                            //To change body of created functions use File | Settings | File Templates. return false
+                        }
+
+                        override fun onSearchRequested(): Boolean {
+                            //To change body of created functions use File | Settings | File Templates. return false
+                            return false
+                        }
+
+                        override fun onSearchRequested(searchEvent: SearchEvent?): Boolean {
+                            //To change body of created functions use File | Settings | File Templates. return false return false
+                            return false
+                        }
+
+                        override fun onActionModeStarted(mode: ActionMode?) {
+
+                        }
+
+                        override fun dispatchTouchEvent(event: MotionEvent?): Boolean {
+                            "--- dispatching".error
+                            activity?.window?.decorView?.childrenRecursiveSequence()?.forEach {
+                                if (it.hasWindowFocus()) {
+                                    "--- $it".error
+                                    it.setOnClickListener {
+                                        "--- CLICK 2$it".error
+                                    }
+                                }
+                            }
+                            detector.onTouchEvent(event)
+                            return true
+                        }
+
+                    }
+                }
+//                activity?.window?.decorView?.childrenRecursiveSequence()?.forEach {
+//                    "--- $it".error
+//                    it.setOnClickListener {
+//                        "--- CLICK 2$it".error
+//                    }
+//                }
             }
         }
+
+//
+//        val activityThread = Class.forName("android.app.ActivityThread")
+//        val ctx = activityThread.getDeclaredMethod("currentApplication").invoke(null) as Application
+//        val activitiesField = activityThread.getDeclaredField("mActivities")
+//        activitiesField.isAccessible = true
+//        val arr = activitiesField.get(ctx)
+//
+
+//        val am = ac.getSystemService(ACTIVITY_SERVICE) as ActivityManager
+
+//        val sdf = am.getRunningTasks(1)
+//        am.getRunningTasks(1)
+
+
+//        ctx?.window?.callback = object : Window.Callback {
+//            override fun onActionModeFinished(mode: ActionMode?) {
+//                //To change body of created functions use File | Settings | File Templates. return false
+//            }
+//
+//            override fun onCreatePanelView(featureId: Int): View? {
+//                //To change body of created functions use File | Settings | File Templates. return false
+//                return null
+//            }
+//
+//            override fun onCreatePanelMenu(featureId: Int, menu: Menu?): Boolean {
+//                //To change body of created functions use File | Settings | File Templates. return false
+//                return false
+//            }
+//
+//            override fun onWindowStartingActionMode(callback: ActionMode.Callback?): ActionMode? {
+//                //To change body of created functions use File | Settings | File Templates. return false
+//                return null
+//            }
+//
+//            override fun onWindowStartingActionMode(callback: ActionMode.Callback?, type: Int): ActionMode? {
+//                //To change body of created functions use File | Settings | File Templates. return false
+//                return null
+//            }
+//
+//            override fun onAttachedToWindow() {
+//                //To change body of created functions use File | Settings | File Templates. return false
+//            }
+//
+//            override fun dispatchGenericMotionEvent(event: MotionEvent?): Boolean {
+//                //To change body of created functions use File | Settings | File Templates. return false
+//                return false
+//            }
+//
+//            override fun dispatchPopulateAccessibilityEvent(event: AccessibilityEvent?): Boolean {
+//                //To change body of created functions use File | Settings | File Templates. return false
+//                return false
+//            }
+//
+//            override fun dispatchTrackballEvent(event: MotionEvent?): Boolean {
+//                //To change body of created functions use File | Settings | File Templates. return false
+//                return false
+//            }
+//
+//            override fun dispatchKeyShortcutEvent(event: KeyEvent?): Boolean {
+//                //To change body of created functions use File | Settings | File Templates. return false
+//                return false
+//            }
+//
+//            override fun dispatchKeyEvent(event: KeyEvent?): Boolean {
+//                //To change body of created functions use File | Settings | File Templates. return false
+//                return false
+//            }
+//
+//            override fun onMenuOpened(featureId: Int, menu: Menu?): Boolean {
+//                //To change body of created functions use File | Settings | File Templates. return false
+//                return false
+//            }
+//
+//            override fun onPanelClosed(featureId: Int, menu: Menu?) {
+//                //To change body of created functions use File | Settings | File Templates. return false
+//            }
+//
+//            override fun onMenuItemSelected(featureId: Int, item: MenuItem?): Boolean {
+//                //To change body of created functions use File | Settings | File Templates. return false
+//                return false
+//            }
+//
+//            override fun onDetachedFromWindow() {
+//                //To change body of created functions use File | Settings | File Templates. return false
+//            }
+//
+//            override fun onPreparePanel(featureId: Int, view: View?, menu: Menu?): Boolean {
+//                //To change body of created functions use File | Settings | File Templates. return false
+//                return false
+//            }
+//
+//            override fun onWindowAttributesChanged(attrs: WindowManager.LayoutParams?) {
+//                //To change body of created functions use File | Settings | File Templates. return false
+//            }
+//
+//            override fun onWindowFocusChanged(hasFocus: Boolean) {
+//                //To change body of created functions use File | Settings | File Templates. return false
+//            }
+//
+//            override fun onContentChanged() {
+//                //To change body of created functions use File | Settings | File Templates. return false
+//            }
+//
+//            override fun onSearchRequested(): Boolean {
+//                //To change body of created functions use File | Settings | File Templates. return false
+//                return false
+//            }
+//
+//            override fun onSearchRequested(searchEvent: SearchEvent?): Boolean {
+//                //To change body of created functions use File | Settings | File Templates. return false return false
+//                return false
+//            }
+//
+//            override fun onActionModeStarted(mode: ActionMode?) {
+//
+//            }
+//
+//            override fun dispatchTouchEvent(event: MotionEvent?): Boolean {
+//                "--- dispatching $event".error
+//                return false
+//            }
+//
+//        }
+
+//        val activitiesF = ctx.javaClass.getDeclaredField("mActivities")
+//        activitiesF.isAccessible = true
+//        val activities = activitiesF.get(ctx) as? ArrayMap<*, *>
+//        val thr = Looper.getMainLooper().thread
+//        val activityThread = Class.forName("android.app.ActivityThread")
+//        val currentApplication = thr::class.java.getDeclaredField("currentApplication")
+//        val ctx = activityThread.getDeclaredMethod("currentApplication").invoke(null) as Context
+
+//        currentApplication.isAccessible = true
+
+//        async {
+//            while (true) {
+//                dumpQueue()
+//                Thread.sleep(1L)
+//            }
+//        }
     }
 
     private var messagesField: Field
