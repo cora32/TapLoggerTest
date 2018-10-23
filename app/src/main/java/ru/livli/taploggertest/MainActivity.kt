@@ -13,6 +13,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.bottomnavigation.BottomNavigationItemView
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.delay
@@ -49,30 +50,12 @@ class SecondActivity : AppCompatActivity() {
 
 object TapLogger {
     private val r = Rect()
-    private const val viewStr = "android.view.View"
-    private var messagesField: Field
-    private var nextField: Field
-    private var mainMessageQueue: MessageQueue
     private var selectedView: WeakReference<View>? = null
-    private var oldActivity: WeakReference<AppCompatActivity>? = null
+    private var oldActivity: WeakReference<Activity>? = null
 
-    init {
-        try {
-            val queueField = Looper::class.java.getDeclaredField("mQueue")
-            queueField.isAccessible = true
-            messagesField = MessageQueue::class.java.getDeclaredField("mMessages")
-            messagesField.isAccessible = true
-            nextField = Message::class.java.getDeclaredField("next")
-            nextField.isAccessible = true
-            val mainLooper = Looper.getMainLooper()
-            mainMessageQueue = queueField.get(mainLooper) as MessageQueue
-        } catch (e: Exception) {
-            throw RuntimeException(e)
-        }
+    private fun getReflectedActivity(): Activity? {
+        val dialogClass = Class.forName("android.app.Dialog")
 
-    }
-
-    fun getReflectedActivity(): AppCompatActivity? {
         val activityThreadClass = Class.forName("android.app.ActivityThread")
         val activityThread = activityThreadClass.getMethod("currentActivityThread")
                 .invoke(null)
@@ -84,7 +67,7 @@ object TapLogger {
             activityClient?.let {
                 val activityField = activityClient::class.java.getDeclaredField("activity")
                 activityField.isAccessible = true
-                return activityField.get(activityClient) as? AppCompatActivity
+                return activityField.get(activityClient) as? Activity
             }
         }
         return null
@@ -95,29 +78,28 @@ object TapLogger {
 
         async {
             while (true) {
-                delay(700)
+                delay(1500)
                 activity = getReflectedActivity()
-                "--- act: ${activity?.javaClass?.name}".error
+                activity?.let {
+                    "--- ${it::class.java.name}".error
+                }
+                if (activity == null)
+                    "--- activity = Null".error
+//                "--- act: ${activity?.javaClass?.name}".error
                 if (activity?.javaClass?.name != oldActivity?.get()?.javaClass?.name) {
+                    if (oldActivity?.get() != null) {
+                        "--- activitySwitched from ${oldActivity?.get()?.javaClass?.name} to ${activity?.javaClass?.name}".error
+                    }
                     activity?.let { act -> oldActivity = WeakReference(act) }
-                    "--- activitySwitched to ${oldActivity?.get()?.javaClass?.name}".error
                     setupListeners(activity)
                 }
             }
         }
 
         setupListeners(activity)
-
-
-//        async {
-//            while (true) {
-//                dumpQueue()
-//                Thread.sleep(1L)
-//            }
-//        }
     }
 
-    private fun setupListeners(activity: AppCompatActivity?) {
+    private fun setupListeners(activity: Activity?) {
         if (activity == null)
             return
 
@@ -133,7 +115,6 @@ object TapLogger {
             }
 
             override fun onDown(p0: MotionEvent?): Boolean {
-                "--- onDown".error
                 return false
             }
 
@@ -192,12 +173,10 @@ object TapLogger {
                 }
 
                 override fun onAttachedToWindow() {
-                    "--- onAttachedToWindow".error
                     oldCallback.onAttachedToWindow()
                 }
 
                 override fun dispatchGenericMotionEvent(event: MotionEvent?): Boolean {
-                    "--- dispatchGenericMotionEvent".error
                     return oldCallback.dispatchGenericMotionEvent(event)
                 }
 
@@ -237,7 +216,6 @@ object TapLogger {
                 }
 
                 override fun onDetachedFromWindow() {
-                    "--- onDetachedFromWindow".error
                     oldCallback.onDetachedFromWindow()
                 }
 
@@ -279,7 +257,6 @@ object TapLogger {
                 override fun dispatchTouchEvent(event: MotionEvent?): Boolean {
                     when (event?.action) {
                         MotionEvent.ACTION_DOWN -> {
-                            "--- dispatching".error
                             if (!iterateChildren(activity, event))
                                 "--- unresponsive?".error
                         }
@@ -295,37 +272,72 @@ object TapLogger {
 
     private fun iterateChildren(activity: Activity, event: MotionEvent): Boolean {
         activity.window?.decorView?.childrenRecursiveSequence()?.forEach {
-            if (it.isClickable) {
-                when (it) {
-                    is TextView -> {
-                        val x = event.x.toInt()
-                        val y = event.y.toInt()
-                        it.getGlobalVisibleRect(r)
+            if (it.id > -1) {
+                if (it.isClickable) {
+                    when (it) {
+                        is TextView -> {
+                            val x = event.x.toInt()
+                            val y = event.y.toInt()
+                            it.getGlobalVisibleRect(r)
 
-                        if (r.contains(x, y)) {
-                            ("--- \"${it.text}\" ${r.contains(x, y)} ${activity.resources.getResourceName(it.id)}").error
-                            return true
+                            if (r.contains(x, y)) {
+                                ("--- \"${it.text}\" ${r.contains(x, y)} ${activity.resources.getResourceName(it.id)}").error
+                                selectedView = WeakReference(it)
+                                return true
+                            }
                         }
-                    }
-                    is ImageView -> {
-                        val x = event.x.toInt()
-                        val y = event.y.toInt()
-                        it.getGlobalVisibleRect(r)
+                        is ImageView -> {
+                            val x = event.x.toInt()
+                            val y = event.y.toInt()
+                            it.getGlobalVisibleRect(r)
 
-                        if (r.contains(x, y)) {
-                            //get drawable and draw it to canvas here
-//                            ("--- \"${it.text}\" ${r.contains(x, y)}").error
-                            selectedView = WeakReference(it)
-                            return true
+                            if (r.contains(x, y)) {
+                                //get drawable and draw it to canvas here
+                                ("--- ${r.contains(x, y)} ${activity.resources.getResourceName(it.id)}").error
+                                selectedView = WeakReference(it)
+                                return true
+                            }
                         }
-                    }
-                    else -> {
-                        "--- clicked 2: ${it.isClickable} ${it.javaClass}".error
+                        is BottomNavigationItemView -> {
+                            val x = event.x.toInt()
+                            val y = event.y.toInt()
+                            it.getGlobalVisibleRect(r)
+
+                            if (r.contains(x, y)) {
+                                ("--- ${it.largeLabel?.text} ${it.smallLabel?.text} ${r.contains(x, y)} ${activity.resources.getResourceName(it.id)}").error
+                                selectedView = WeakReference(it)
+                                return true
+                            }
+                        }
+                        else -> {
+                            "--- clicked: ${it.isClickable} ${it.javaClass} ${activity.resources.getResourceName(it.id)}".error
+                        }
                     }
                 }
             }
         }
         return false
+    }
+
+    private const val viewStr = "android.view.View"
+    private var messagesField: Field
+    private var nextField: Field
+    private var mainMessageQueue: MessageQueue
+
+    init {
+        try {
+            val queueField = Looper::class.java.getDeclaredField("mQueue")
+            queueField.isAccessible = true
+            messagesField = MessageQueue::class.java.getDeclaredField("mMessages")
+            messagesField.isAccessible = true
+            nextField = Message::class.java.getDeclaredField("next")
+            nextField.isAccessible = true
+            val mainLooper = Looper.getMainLooper()
+            mainMessageQueue = queueField.get(mainLooper) as MessageQueue
+        } catch (e: Exception) {
+            throw RuntimeException(e)
+        }
+
     }
 
     fun dumpQueue() {
