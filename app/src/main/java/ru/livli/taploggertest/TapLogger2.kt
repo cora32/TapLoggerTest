@@ -1,89 +1,34 @@
 package ru.livli.taploggertest
 
+import android.app.Dialog
 import android.content.res.Resources
 import android.graphics.Rect
 import android.os.Build
-import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.util.ArrayMap
 import android.view.*
+import android.view.KeyEvent.*
 import android.view.accessibility.AccessibilityEvent
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.annotation.RequiresApi
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
 import com.google.android.material.bottomnavigation.BottomNavigationItemView
-import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.delay
 import org.jetbrains.anko.childrenRecursiveSequence
 import java.lang.ref.WeakReference
 
-class MainActivity2 : AppCompatActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-
-
-        tv.setOnClickListener {
-            "--- ORIGINAL click".error
-//            startActivity(Intent(this, SecondActivity::class.java))
-
-            val alert = AlertDialog.Builder(this)
-            alert.setNegativeButton("NEGA") { p0, p1 -> "--- NEG".error }
-            alert.setPositiveButton("POSI") { p0, p1 -> "--- POS".error }
-            with(alert.create()) {
-                setTitle("TEST")
-                setMessage("NONE")
-                setCancelable(true)
-                show()
-            }
-//            "--- dWin: ${dialog.window}".error
-        }
-
-        async {
-            TapLogger.start()
-        }.invokeOnCompletion {
-            if (it != null)
-                "--- G ERROR $it".error
-        }
-    }
-}
-
-class SecondActivity2 : AppCompatActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-    }
-}
-
 object TapLogger {
-    private val windowList = ArrayList<Any>()
+    private const val ACTIVITY = "ACTIVITY"
+    private const val DIALOG = "DIALOG"
+    private val windowList = ArrayList<Window>()
     private val r = Rect()
-    //    private const val viewStr = "android.view.View"
-//    private var messagesField: Field
-//    private var nextField: Field
-//    private var mainMessageQueue: MessageQueue
     private var selectedView: WeakReference<View>? = null
-//    private var oldActivity: WeakReference<AppCompatActivity>? = null
-
-//    init {
-//        try {
-//            val queueField = Looper::class.java.getDeclaredField("mQueue")
-//            queueField.isAccessible = true
-//            messagesField = MessageQueue::class.java.getDeclaredField("mMessages")
-//            messagesField.isAccessible = true
-//            nextField = Message::class.java.getDeclaredField("next")
-//            nextField.isAccessible = true
-//            val mainLooper = Looper.getMainLooper()
-//            mainMessageQueue = queueField.get(mainLooper) as MessageQueue
-//        } catch (e: Exception) {
-//            throw RuntimeException(e)
-//        }
-//
-//    }
+    private var oldJavaClassName = ""
+    private var oldWindowType = ""
+    private var oldTitle: String? = null
 
     private fun getReflectedActivity(): AppCompatActivity? {
         val activityThreadClass = Class.forName("android.app.ActivityThread")
@@ -91,13 +36,14 @@ object TapLogger {
                 .invoke(null)
         val activitiesField = activityThreadClass.getDeclaredField("mActivities")
         activitiesField.isAccessible = true
-        val activities = activitiesField.get(activityThread) as ArrayMap<*, *>
+        val activities = activitiesField.get(activityThread) as Map<*, *>
         if (activities.isNotEmpty()) {
-            val activityClient = activities.valueAt(0)
+            val activityClient = activities.iterator().next().value
             activityClient?.let {
                 val activityField = activityClient::class.java.getDeclaredField("activity")
                 activityField.isAccessible = true
-                return activityField.get(activityClient) as? AppCompatActivity
+                val act = activityField.get(activityClient) as? AppCompatActivity
+                return act
             }
         }
         return null
@@ -117,38 +63,51 @@ object TapLogger {
                     rootsField.isAccessible = true
                     val roots = rootsField.get(global) as ArrayList<*>
 
-                    val comparatorList = ArrayList<Any>()
                     roots.forEach {
                         val windowCallbacksField = it.javaClass.getDeclaredField("mWindowCallbacks")
                         windowCallbacksField.isAccessible = true
                         val windowCallbacks = windowCallbacksField.get(it) as? ArrayList<*>
 
                         windowCallbacks?.let {
-                            comparatorList.addAll(windowCallbacks)
                             windowCallbacks.forEach {
-                                if (!windowList.contains(it)) {
-                                    windowList.add(it)
-                                    val windowField = it.javaClass.getDeclaredField("mWindow")
-                                    windowField.isAccessible = true
-                                    val window = windowField.get(it) as? Window
-                                    window?.let {
-                                        //                                        "--- Setting listener for: $it".error
-                                        setupListeners(it)
+                                val windowField = it.javaClass.getDeclaredField("mWindow")
+                                windowField.isAccessible = true
+                                val window = windowField.get(it) as? Window
+
+                                window?.let {
+                                    if (!windowList.contains(it)) {
+                                        windowList.add(window)
+
+                                        val title = getTitle(window).toString()
+//                                        "--- ${window.context} ${title} ${window.callback}".error
+
+                                        val javaClassName = window.context.javaClass.name
+                                        val windowType = getWindowType(it.callback)
+                                        if (window.context.javaClass.name == oldJavaClassName) {
+                                            "--- user reentered $windowType $title $javaClassName".error
+                                        } else {
+                                            when (oldWindowType) {
+                                                DIALOG -> "--- from $oldWindowType $oldTitle to $windowType $title $javaClassName".error
+                                                else -> "--- from $oldWindowType $oldTitle to $windowType $title $javaClassName".error
+                                            }
+                                        }
+                                        oldJavaClassName = javaClassName
+                                        oldWindowType = windowType
+                                        oldTitle = title
+
+                                        setupListeners(window)
                                     }
                                 }
+
+                                if (window == null)
+                                    "--- window = null was (${window?.javaClass?.name})".error
                             }
                         }
                     }
-                    windowList.removeAll { !comparatorList.contains(it) }
+
+                    clearList()
                 }
-//                if (activity != oldActivity?.get()) {
-//                    if (oldActivity?.get() != null) {
-////                        "--- activitySwitched from ${oldActivity?.get()?.javaClass?.name} to ${activity?.javaClass?.name}".error
-//                    }
-//                    activity?.let { act -> oldActivity = WeakReference(act) }
-//                    setupListeners(activity)
-//                }
-                delay(5500)
+                delay(1000)
             }
         }.invokeOnCompletion {
             if (it != null) {
@@ -156,24 +115,54 @@ object TapLogger {
                 it.printStackTrace()
             }
         }
-
-
-//        async {
-//            while (true) {
-//                dumpQueue()
-//                Thread.sleep(1L)
-//            }
-//        }
     }
+
+    private fun clearList() {
+        if (windowList.removeAll {
+                    val pred = !ViewCompat.isAttachedToWindow(it.decorView)
+                    if (pred) {
+                        "--- user left $oldWindowType $oldTitle ${it.context.javaClass.name}".error
+                    }
+                    pred
+                }) {
+            if (windowList.isNotEmpty()) {
+                val last = windowList.last()
+                oldWindowType = getWindowType(last.callback)
+                oldTitle = getTitle(last)
+            } else {
+                oldWindowType = ""
+                oldTitle = null
+            }
+        }
+    }
+
+    private fun getWindowType(callback: Window.Callback): String = when (callback) {
+        is Dialog -> {
+            DIALOG
+        }
+        else -> {
+            "--- CHECK ME:$callback".error
+            ACTIVITY
+        }
+    }
+
+    private fun getTitle(window: Window): String? =
+            try {
+                val titleField = window.javaClass.getDeclaredField("mTitle")
+                titleField.isAccessible = true
+                titleField.get(window) as? String
+            } catch (ex: Exception) {
+                null
+            }
 
     private fun setupListeners(window: Window) {
         val list = object : GestureDetector.OnGestureListener {
             override fun onShowPress(p0: MotionEvent?) {
-                "--- onShowPress".error
+//                "--- onShowPress".error
             }
 
             override fun onSingleTapUp(p0: MotionEvent?): Boolean {
-                "--- onSingleTapUp".error
+//                "--- onSingleTapUp".error
 //                selectedView?.get()?.performClick()
                 return false
             }
@@ -195,12 +184,12 @@ object TapLogger {
             }
 
             override fun onScroll(p0: MotionEvent?, p1: MotionEvent?, p2: Float, p3: Float): Boolean {
-                "--- onScroll".error
+//                "--- onScroll".error
                 return false
             }
 
             override fun onLongPress(p0: MotionEvent?) {
-                "--- onLongPress".error
+//                "--- onLongPress".error
             }
 
 
@@ -261,6 +250,18 @@ object TapLogger {
 
                 override fun dispatchKeyEvent(event: KeyEvent?): Boolean {
                     //To change body of created functions use File | Settings | File Templates. return false
+                    when (event?.action) {
+                        ACTION_DOWN -> {
+                            when (event.keyCode) {
+                                KEYCODE_BACK -> {
+                                    "--- user pressed BACK button".error
+                                }
+                                KEYCODE_HOME -> "--- user pressed HOME button".error
+                                KEYCODE_APP_SWITCH -> "--- user pressed APP_SWITCH button".error
+                                else -> "--- user pressed ${event.keyCode} button".error
+                            }
+                        }
+                    }
                     return oldCallback.dispatchKeyEvent(event)
                 }
 
@@ -387,225 +388,4 @@ object TapLogger {
         }
         return false
     }
-
-//    fun dumpQueue() {
-//        try {
-//            val nextMessage = messagesField.get(mainMessageQueue) as? Message
-//            dumpMessages(nextMessage)
-//        } catch (e: IllegalAccessException) {
-//            "--- exception".error
-//        }
-//
-//    }
-//
-//    @Throws(IllegalAccessException::class)
-//    fun dumpMessages(message: Message?) {
-//        if (message != null) {
-//            if ((message.target != null
-//                            && !message.target.toString().contains("internal.measurement"))
-//            ) {
-//                val handler: Handler? = message.target
-//                try {
-//                    handler?.let {
-//                        val t2 = handler.javaClass.getDeclaredField("this$0")
-//                        t2.isAccessible = true
-//                        val obj2 = t2.get(it)
-//                        try {
-//                            val activitiesF = obj2.javaClass.getDeclaredField("mActivities")
-//                            activitiesF.isAccessible = true
-//                            val activities = activitiesF.get(obj2) as? ArrayMap<*, *>
-//
-//                            activities?.forEach {
-//                                val tk = it.key
-//                                val tv = it.value
-//
-//                                tv?.let {
-//                                    val activf = it.javaClass.getDeclaredField("activity")
-//                                    activf.isAccessible = true
-//                                    val activ = activf.get(it) as? AppCompatActivity
-//                                    activ?.window?.callback = object : Window.Callback {
-//                                        override fun onActionModeFinished(mode: ActionMode?) {
-//                                            //To change body of created functions use File | Settings | File Templates. return false
-//                                        }
-//
-//                                        override fun onCreatePanelView(featureId: Int): View? {
-//                                            //To change body of created functions use File | Settings | File Templates. return false
-//                                            return null
-//                                        }
-//
-//                                        override fun onCreatePanelMenu(featureId: Int, menu: Menu?): Boolean {
-//                                            //To change body of created functions use File | Settings | File Templates. return false
-//                                            return false
-//                                        }
-//
-//                                        override fun onWindowStartingActionMode(callback: ActionMode.Callback?): ActionMode? {
-//                                            //To change body of created functions use File | Settings | File Templates. return false
-//                                            return null
-//                                        }
-//
-//                                        override fun onWindowStartingActionMode(callback: ActionMode.Callback?, type: Int): ActionMode? {
-//                                            //To change body of created functions use File | Settings | File Templates. return false
-//                                            return null
-//                                        }
-//
-//                                        override fun onAttachedToWindow() {
-//                                            //To change body of created functions use File | Settings | File Templates. return false
-//                                        }
-//
-//                                        override fun dispatchGenericMotionEvent(event: MotionEvent?): Boolean {
-//                                            //To change body of created functions use File | Settings | File Templates. return false
-//                                            return false
-//                                        }
-//
-//                                        override fun dispatchPopulateAccessibilityEvent(event: AccessibilityEvent?): Boolean {
-//                                            //To change body of created functions use File | Settings | File Templates. return false
-//                                            return false
-//                                        }
-//
-//                                        override fun dispatchTrackballEvent(event: MotionEvent?): Boolean {
-//                                            //To change body of created functions use File | Settings | File Templates. return false
-//                                            return false
-//                                        }
-//
-//                                        override fun dispatchKeyShortcutEvent(event: KeyEvent?): Boolean {
-//                                            //To change body of created functions use File | Settings | File Templates. return false
-//                                            return false
-//                                        }
-//
-//                                        override fun dispatchKeyEvent(event: KeyEvent?): Boolean {
-//                                            //To change body of created functions use File | Settings | File Templates. return false
-//                                            return false
-//                                        }
-//
-//                                        override fun onMenuOpened(featureId: Int, menu: Menu?): Boolean {
-//                                            //To change body of created functions use File | Settings | File Templates. return false
-//                                            return false
-//                                        }
-//
-//                                        override fun onPanelClosed(featureId: Int, menu: Menu?) {
-//                                            //To change body of created functions use File | Settings | File Templates. return false
-//                                        }
-//
-//                                        override fun onMenuItemSelected(featureId: Int, item: MenuItem?): Boolean {
-//                                            //To change body of created functions use File | Settings | File Templates. return false
-//                                            return false
-//                                        }
-//
-//                                        override fun onDetachedFromWindow() {
-//                                            //To change body of created functions use File | Settings | File Templates. return false
-//                                        }
-//
-//                                        override fun onPreparePanel(featureId: Int, view: View?, menu: Menu?): Boolean {
-//                                            //To change body of created functions use File | Settings | File Templates. return false
-//                                            return false
-//                                        }
-//
-//                                        override fun onWindowAttributesChanged(attrs: WindowManager.LayoutParams?) {
-//                                            //To change body of created functions use File | Settings | File Templates. return false
-//                                        }
-//
-//                                        override fun onWindowFocusChanged(hasFocus: Boolean) {
-//                                            //To change body of created functions use File | Settings | File Templates. return false
-//                                        }
-//
-//                                        override fun onContentChanged() {
-//                                            //To change body of created functions use File | Settings | File Templates. return false
-//                                        }
-//
-//                                        override fun onSearchRequested(): Boolean {
-//                                            //To change body of created functions use File | Settings | File Templates. return false
-//                                            return false
-//                                        }
-//
-//                                        override fun onSearchRequested(searchEvent: SearchEvent?): Boolean {
-//                                            //To change body of created functions use File | Settings | File Templates. return false return false
-//                                            return false
-//                                        }
-//
-//                                        override fun onActionModeStarted(mode: ActionMode?) {
-//
-//                                        }
-//
-//                                        override fun dispatchTouchEvent(event: MotionEvent?): Boolean {
-//                                            "--- dispatching $event".error
-//                                            return false
-//                                        }
-//
-//                                    }
-////                                    val view = activ?.contentView
-////
-////                                    view?.childrenRecursiveSequence()?.forEach {
-////                                        val listener = try {
-////                                            if (it.hasOnClickListeners()) {
-////                                                val listenerField: Field = Class.forName(viewStr).getDeclaredField("mListenerInfo")
-//////                                        val listenerField = it.javaClass.getDeclaredField("mListenerInfo")
-////                                                listenerField.isAccessible = true
-////                                                val listenerInfo = listenerField.get(it)
-////
-////                                                val clickListenerField = listenerInfo.javaClass.getDeclaredField("mOnClickListener")
-////                                                clickListenerField.isAccessible = true
-////                                                clickListenerField.get(listenerInfo) as? View.OnClickListener
-////                                            } else null
-////                                        } catch (e: Exception) {
-////                                            "--- exception 7".error
-////                                            null
-////                                        }
-////
-////                                        Handler(Looper.getMainLooper()).post {
-////                                            it.setOnClickListener {
-////                                                "--- clicked $it ${it.id} ${it.labelFor} ${(it as? Button)?.text}".error
-////                                                listener?.onClick(it)
-////                                            }
-////                                        }
-////                                    }
-//
-//                                    "--- success $activ".error
-//                                }
-//                            }
-//                        } catch (e: Exception) {
-//                            "--- exception 1".error
-//                        }
-//
-//                        try {
-//                            val activf = obj2.javaClass.getDeclaredField("mContext")
-//                            activf.isAccessible = true
-//                            val activ = activf.get(obj2) as? AppCompatActivity
-//                            val view = activ?.contentView
-//                            view?.childrenRecursiveSequence()?.forEach {
-//                                val listener = try {
-//                                    if (it.hasOnClickListeners()) {
-//                                        val listenerField: Field = Class.forName(viewStr).getDeclaredField("mListenerInfo")
-////                                        val listenerField = it.javaClass.getDeclaredField("mListenerInfo")
-//                                        listenerField.isAccessible = true
-//                                        val listenerInfo = listenerField.get(it)
-//
-//                                        val clickListenerField = listenerInfo.javaClass.getDeclaredField("mOnClickListener")
-//                                        clickListenerField.isAccessible = true
-//                                        clickListenerField.get(listenerInfo) as? View.OnClickListener
-//                                    } else null
-//                                } catch (e: Exception) {
-//                                    "--- exception 4".error
-//                                    null
-//                                }
-//
-//                                it.setOnClickListener {
-//                                    "--- clicked $it ${it.id} ${it.labelFor} ${(it as? Button)?.text}".error
-//                                    listener?.onClick(it)
-//                                }
-//                            }
-//                            "--- success 2 $activ $view".error
-//                        } catch (e: Exception) {
-//                            "--- exception 3".error
-//                        }
-//                    }
-//                } catch (e: Exception) {
-//                    "--- exception 2".error
-//                }
-//            }
-//
-//            val next = nextField.get(message) as? Message
-//            dumpMessages(next)
-//        }
-//    }
-
 }

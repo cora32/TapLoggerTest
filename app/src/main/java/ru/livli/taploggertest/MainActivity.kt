@@ -1,10 +1,12 @@
 package ru.livli.taploggertest
 
+import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import kotlinx.android.synthetic.main.activity_main.*
+import kotlinx.coroutines.experimental.async
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -13,15 +15,27 @@ class MainActivity : AppCompatActivity() {
 
         tv.setOnClickListener {
             "--- ORIGINAL click".error
+            val alert = AlertDialog.Builder(this)
+            alert.setNegativeButton("NEGA") { p0, p1 -> "--- NEG".error }
+            alert.setPositiveButton("POSI") { p0, p1 -> "--- POS".error }
+            with(alert.create()) {
+                setTitle("TEST")
+                setMessage("NONE")
+                setCancelable(true)
+                show()
+            }
+        }
+
+        button.setOnClickListener {
             startActivity(Intent(this, SecondActivity::class.java))
         }
 
-//        async {
-//            TapLogger.start()
-//        }.invokeOnCompletion {
-//            if (it != null)
-//                "--- G ERROR $it".error
-//        }
+        async {
+            TapLogger.start()
+        }.invokeOnCompletion {
+            if (it != null)
+                "--- G ERROR $it".error
+        }
     }
 }
 
