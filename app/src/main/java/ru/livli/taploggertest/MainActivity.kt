@@ -30,6 +30,10 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(this, SecondActivity::class.java))
         }
 
+        button2.setOnClickListener {
+            supportFragmentManager.beginTransaction().add(android.R.id.content, Fragment1(), "frag1").addToBackStack("frag1").commit()
+        }
+
         async {
             TapLogger.start()
         }.invokeOnCompletion {
@@ -43,6 +47,14 @@ class SecondActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        button.setOnClickListener {
+            startActivity(Intent(this, SecondActivity::class.java))
+        }
+
+        button2.setOnClickListener {
+            supportFragmentManager.beginTransaction().add(android.R.id.content, Fragment1(), "frag1").addToBackStack("frag1").commit()
+        }
     }
 }
 

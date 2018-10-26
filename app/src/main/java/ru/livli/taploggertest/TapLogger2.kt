@@ -1,24 +1,28 @@
 package ru.livli.taploggertest
 
+import android.app.Activity
 import android.app.Dialog
+import android.content.Context
 import android.content.res.Resources
 import android.graphics.Rect
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.*
-import android.view.KeyEvent.*
 import android.view.accessibility.AccessibilityEvent
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import com.google.android.material.bottomnavigation.BottomNavigationItemView
 import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.delay
 import org.jetbrains.anko.childrenRecursiveSequence
 import java.lang.ref.WeakReference
+
 
 object TapLogger {
     private const val ACTIVITY = "ACTIVITY"
@@ -29,9 +33,51 @@ object TapLogger {
     private var oldJavaClassName = ""
     private var oldWindowType = ""
     private var oldTitle: String? = null
+    private val activityThreadClass = Class.forName("android.app.ActivityThread")
+    private val onGestureListener = object : GestureDetector.OnGestureListener {
+        override fun onShowPress(p0: MotionEvent?) {
+//                "--- onShowPress".error
+        }
+
+        override fun onSingleTapUp(p0: MotionEvent?): Boolean {
+//                "--- onSingleTapUp".error
+//                selectedView?.get()?.performClick()
+            return false
+        }
+
+        override fun onDown(p0: MotionEvent?): Boolean {
+            return false
+        }
+
+        override fun onFling(p0: MotionEvent?, p1: MotionEvent?, p2: Float, p3: Float): Boolean {
+            if (Math.abs(p2) > Math.abs(p3)) {
+                if (p2 > 0.5f) "--- onFling right".error
+                else "--- onFling left".error
+            } else {
+                if (p3 > 0.5f) "--- onFling down".error
+                else "--- onFling up".error
+            }
+
+            return false
+        }
+
+        override fun onScroll(p0: MotionEvent?, p1: MotionEvent?, p2: Float, p3: Float): Boolean {
+            if (Math.abs(p2) > Math.abs(p3)) {
+                if (p2 > 0.5f) "--- onScroll left".error
+                else "--- onScroll right".error
+            } else {
+                if (p3 > 0.5f) "--- onScroll up".error
+                else "--- onScroll down".error
+            }
+            return false
+        }
+
+        override fun onLongPress(p0: MotionEvent?) {
+//                "--- onLongPress".error
+        }
+    }
 
     private fun getReflectedActivity(): AppCompatActivity? {
-        val activityThreadClass = Class.forName("android.app.ActivityThread")
         val activityThread = activityThreadClass.getMethod("currentActivityThread")
                 .invoke(null)
         val activitiesField = activityThreadClass.getDeclaredField("mActivities")
@@ -82,7 +128,7 @@ object TapLogger {
 //                                        "--- ${window.context} ${title} ${window.callback}".error
 
                                         val javaClassName = window.context.javaClass.name
-                                        val windowType = getWindowType(it.callback)
+                                        val windowType = getWindowType(it.context)
                                         if (window.context.javaClass.name == oldJavaClassName) {
                                             "--- user reentered $windowType $title $javaClassName".error
                                         } else {
@@ -127,7 +173,7 @@ object TapLogger {
                 }) {
             if (windowList.isNotEmpty()) {
                 val last = windowList.last()
-                oldWindowType = getWindowType(last.callback)
+                oldWindowType = getWindowType(last.context)
                 oldTitle = getTitle(last)
             } else {
                 oldWindowType = ""
@@ -136,15 +182,15 @@ object TapLogger {
         }
     }
 
-    private fun getWindowType(callback: Window.Callback): String = when (callback) {
-        is Dialog -> {
-            DIALOG
-        }
-        else -> {
-            "--- CHECK ME:$callback".error
-            ACTIVITY
-        }
-    }
+    private fun getWindowType(context: Context): String =
+            when (context) {
+                is Dialog -> DIALOG
+                is Activity -> ACTIVITY
+                is ContextThemeWrapper -> DIALOG
+                else -> {
+                    "UNKNOWN ${context.javaClass.name}"
+                }
+            }
 
     private fun getTitle(window: Window): String? =
             try {
@@ -156,72 +202,49 @@ object TapLogger {
             }
 
     private fun setupListeners(window: Window) {
-        val list = object : GestureDetector.OnGestureListener {
-            override fun onShowPress(p0: MotionEvent?) {
-//                "--- onShowPress".error
+        (window.context as? AppCompatActivity)?.supportFragmentManager?.registerFragmentLifecycleCallbacks(object : FragmentManager.FragmentLifecycleCallbacks() {
+            override fun onFragmentAttached(fm: FragmentManager, f: Fragment, context: Context) {
+                super.onFragmentAttached(fm, f, context)
+                "--- user entered fragment ${f.tag}".error
+//                f.activity?.window?.let {
+//                    Handler(Looper.getMainLooper()).post {
+//                        it.callback = getWindowCallback(it, it.callback, GestureDetector(window.context, onGestureListener))
+//                    }
+//                }
             }
 
-            override fun onSingleTapUp(p0: MotionEvent?): Boolean {
-//                "--- onSingleTapUp".error
-//                selectedView?.get()?.performClick()
-                return false
+            override fun onFragmentDetached(fm: FragmentManager, f: Fragment) {
+                super.onFragmentDetached(fm, f)
+                "--- user left fragment ${f.tag}".error
             }
+        }, true)
 
-            override fun onDown(p0: MotionEvent?): Boolean {
-                return false
-            }
-
-            override fun onFling(p0: MotionEvent?, p1: MotionEvent?, p2: Float, p3: Float): Boolean {
-                if (Math.abs(p2) > Math.abs(p3)) {
-                    if (p2 > 0.5f) "--- onFling right".error
-                    else "--- onFling left".error
-                } else {
-                    if (p3 > 0.5f) "--- onFling down".error
-                    else "--- onFling up".error
-                }
-
-                return false
-            }
-
-            override fun onScroll(p0: MotionEvent?, p1: MotionEvent?, p2: Float, p3: Float): Boolean {
-//                "--- onScroll".error
-                return false
-            }
-
-            override fun onLongPress(p0: MotionEvent?) {
-//                "--- onLongPress".error
-            }
-
-
-        }
         Handler(Looper.getMainLooper()).post {
-            val detector = GestureDetector(window.context, list)
+            window.callback = getWindowCallback(window, window.callback, GestureDetector(window.context, onGestureListener))
+        }
+    }
 
-            val oldCallback = window.callback
-            window.callback = object : Window.Callback {
+    private fun getWindowCallback(window: Window, oldCallback: Window.Callback?, detector: GestureDetector): Window.Callback? {
+        oldCallback?.let {
+            return object : Window.Callback {
                 override fun onActionModeFinished(mode: ActionMode?) {
-                    //To change body of created functions use File | Settings | File Templates. return false
                     return oldCallback.onActionModeFinished(mode)
                 }
 
                 override fun onCreatePanelView(featureId: Int): View? {
-                    //To change body of created functions use File | Settings | File Templates. return false
                     return oldCallback.onCreatePanelView(featureId)
                 }
 
                 override fun onCreatePanelMenu(featureId: Int, menu: Menu?): Boolean {
-                    //To change body of created functions use File | Settings | File Templates. return false
                     return oldCallback.onCreatePanelMenu(featureId, menu)
                 }
 
                 override fun onWindowStartingActionMode(callback: ActionMode.Callback?): ActionMode? {
-                    //To change body of created functions use File | Settings | File Templates. return false
                     return oldCallback.onWindowStartingActionMode(callback)
                 }
 
                 @RequiresApi(Build.VERSION_CODES.M)
                 override fun onWindowStartingActionMode(callback: ActionMode.Callback?, type: Int): ActionMode? {
-                    //To change body of created functions use File | Settings | File Templates. return false
                     return oldCallback.onWindowStartingActionMode(callback, type)
                 }
 
@@ -234,30 +257,26 @@ object TapLogger {
                 }
 
                 override fun dispatchPopulateAccessibilityEvent(event: AccessibilityEvent?): Boolean {
-                    //To change body of created functions use File | Settings | File Templates. return false
                     return oldCallback.dispatchPopulateAccessibilityEvent(event)
                 }
 
                 override fun dispatchTrackballEvent(event: MotionEvent?): Boolean {
-                    //To change body of created functions use File | Settings | File Templates. return false
                     return oldCallback.dispatchTrackballEvent(event)
                 }
 
                 override fun dispatchKeyShortcutEvent(event: KeyEvent?): Boolean {
-                    //To change body of created functions use File | Settings | File Templates. return false
                     return oldCallback.dispatchKeyShortcutEvent(event)
                 }
 
                 override fun dispatchKeyEvent(event: KeyEvent?): Boolean {
-                    //To change body of created functions use File | Settings | File Templates. return false
                     when (event?.action) {
-                        ACTION_DOWN -> {
+                        KeyEvent.ACTION_DOWN -> {
                             when (event.keyCode) {
-                                KEYCODE_BACK -> {
+                                KeyEvent.KEYCODE_BACK -> {
                                     "--- user pressed BACK button".error
                                 }
-                                KEYCODE_HOME -> "--- user pressed HOME button".error
-                                KEYCODE_APP_SWITCH -> "--- user pressed APP_SWITCH button".error
+                                KeyEvent.KEYCODE_HOME -> "--- user pressed HOME button".error
+                                KeyEvent.KEYCODE_APP_SWITCH -> "--- user pressed APP_SWITCH button".error
                                 else -> "--- user pressed ${event.keyCode} button".error
                             }
                         }
@@ -266,17 +285,14 @@ object TapLogger {
                 }
 
                 override fun onMenuOpened(featureId: Int, menu: Menu?): Boolean {
-                    //To change body of created functions use File | Settings | File Templates. return false
                     return oldCallback.onMenuOpened(featureId, menu)
                 }
 
                 override fun onPanelClosed(featureId: Int, menu: Menu?) {
-                    //To change body of created functions use File | Settings | File Templates. return false
                     oldCallback.onPanelClosed(featureId, menu)
                 }
 
                 override fun onMenuItemSelected(featureId: Int, item: MenuItem?): Boolean {
-                    //To change body of created functions use File | Settings | File Templates. return false
                     return oldCallback.onMenuItemSelected(featureId, item)
                 }
 
@@ -285,33 +301,27 @@ object TapLogger {
                 }
 
                 override fun onPreparePanel(featureId: Int, view: View?, menu: Menu?): Boolean {
-                    //To change body of created functions use File | Settings | File Templates. return false
                     return oldCallback.onPreparePanel(featureId, view, menu)
                 }
 
                 override fun onWindowAttributesChanged(attrs: WindowManager.LayoutParams?) {
-                    //To change body of created functions use File | Settings | File Templates. return false
                     oldCallback.onWindowAttributesChanged(attrs)
                 }
 
                 override fun onWindowFocusChanged(hasFocus: Boolean) {
-                    //To change body of created functions use File | Settings | File Templates. return false
                     oldCallback.onWindowFocusChanged(hasFocus)
                 }
 
                 override fun onContentChanged() {
-                    //To change body of created functions use File | Settings | File Templates. return false
                     return oldCallback.onContentChanged()
                 }
 
                 override fun onSearchRequested(): Boolean {
-                    //To change body of created functions use File | Settings | File Templates. return false
                     return oldCallback.onSearchRequested()
                 }
 
                 @RequiresApi(Build.VERSION_CODES.M)
                 override fun onSearchRequested(searchEvent: SearchEvent?): Boolean {
-                    //To change body of created functions use File | Settings | File Templates. return false return false
                     return oldCallback.onSearchRequested(searchEvent)
                 }
 
@@ -333,14 +343,14 @@ object TapLogger {
 
             }
         }
+
+        return null
     }
 
     private fun iterateChildren(resources: Resources, window: Window, event: MotionEvent): Boolean {
         window.decorView.childrenRecursiveSequence().forEach {
             if (it.isClickable) {
-//                "--- ${it.id}".error
                 if (it.id > -1) {
-//                    "--- ${activity.resources.getResName(it.id)}".error
                     when (it) {
                         is TextView -> {
                             val x = event.x.toInt()
@@ -348,8 +358,9 @@ object TapLogger {
                             it.getGlobalVisibleRect(r)
 
                             if (r.contains(x, y)) {
-                                ("--- \"${it.text}\" ${r.contains(x, y)} ${resources.getResName(it.id)}").error
-                                selectedView = WeakReference(it)
+                                ("--- clicked: \"${it.text}\" ${resources.getResName(it.id)}").error
+//                                selectedView = WeakReference(it)
+                                selectedView = null
                                 return true
                             }
                         }
@@ -360,8 +371,9 @@ object TapLogger {
 
                             if (r.contains(x, y)) {
                                 //get drawable and draw it to canvas here
-                                ("--- ${r.contains(x, y)} ${resources.getResName(it.id)}").error
-                                selectedView = WeakReference(it)
+                                ("--- clicked: ${resources.getResName(it.id)}").error
+//                                selectedView = WeakReference(it)
+                                selectedView = null
                                 return true
                             }
                         }
@@ -374,16 +386,45 @@ object TapLogger {
                                 val labelField = it::class.java.getDeclaredField("largeLabel")
                                 labelField.isAccessible = true
                                 val label = labelField.get(it) as? TextView
-                                ("--- ${label?.text} ${r.contains(x, y)} ${resources.getResName(it.id)}").error
-                                selectedView = WeakReference(it)
+                                ("--- clicked: ${label?.text} ${resources.getResName(it.id)}").error
+//                                selectedView = WeakReference(it)
+                                selectedView = null
                                 return true
                             }
                         }
                         else -> {
-                            "--- clicked: ${it.isClickable} ${it.javaClass} ${resources.getResName(it.id)}".error
+                            if (it.hasOnClickListeners()) {
+                                selectedView = WeakReference(it)
+                                "--- last clickable: ${it.hasOnClickListeners()} ${it.javaClass.name} ${resources.getResName(it.id)}".error
+//                                val x = event.x.toInt()
+//                                val y = event.y.toInt()
+//                                it.getGlobalVisibleRect(r)
+//
+//                                if (r.contains(x, y)) {
+//                                    ("--- clicked: ${resources.getResName(it.id)}").error
+////                                    selectedView = WeakReference(it)
+//                                    return true
+//                                }
+                            } else {
+                                "--- child: ${it.hasOnClickListeners()} ${it.javaClass.name} ${resources.getResName(it.id)}".error
+                            }
                         }
                     }
                 }
+            }
+        }
+
+        selectedView?.get()?.let {
+            val x = event.x.toInt()
+            val y = event.y.toInt()
+            it.getGlobalVisibleRect(r)
+
+            if (r.contains(x, y)) {
+                //get drawable and draw it to canvas here
+                ("--- clicked lastClickable: ${resources.getResName(it.id)}").error
+//                                selectedView = WeakReference(it)
+                selectedView = null
+                return true
             }
         }
         return false
