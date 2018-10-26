@@ -340,7 +340,7 @@ object TapLogger {
             if (it.isClickable) {
 //                "--- ${it.id}".error
                 if (it.id > -1) {
-//                    "--- ${activity.resources.getResourceName(it.id)}".error
+//                    "--- ${activity.resources.getResName(it.id)}".error
                     when (it) {
                         is TextView -> {
                             val x = event.x.toInt()
@@ -348,7 +348,7 @@ object TapLogger {
                             it.getGlobalVisibleRect(r)
 
                             if (r.contains(x, y)) {
-                                ("--- \"${it.text}\" ${r.contains(x, y)} ${resources.getResourceName(it.id)}").error
+                                ("--- \"${it.text}\" ${r.contains(x, y)} ${resources.getResName(it.id)}").error
                                 selectedView = WeakReference(it)
                                 return true
                             }
@@ -360,7 +360,7 @@ object TapLogger {
 
                             if (r.contains(x, y)) {
                                 //get drawable and draw it to canvas here
-                                ("--- ${r.contains(x, y)} ${resources.getResourceName(it.id)}").error
+                                ("--- ${r.contains(x, y)} ${resources.getResName(it.id)}").error
                                 selectedView = WeakReference(it)
                                 return true
                             }
@@ -374,13 +374,13 @@ object TapLogger {
                                 val labelField = it::class.java.getDeclaredField("largeLabel")
                                 labelField.isAccessible = true
                                 val label = labelField.get(it) as? TextView
-                                ("--- ${label?.text} ${r.contains(x, y)} ${resources.getResourceName(it.id)}").error
+                                ("--- ${label?.text} ${r.contains(x, y)} ${resources.getResName(it.id)}").error
                                 selectedView = WeakReference(it)
                                 return true
                             }
                         }
                         else -> {
-                            "--- clicked: ${it.isClickable} ${it.javaClass} ${resources.getResourceName(it.id)}".error
+                            "--- clicked: ${it.isClickable} ${it.javaClass} ${resources.getResName(it.id)}".error
                         }
                     }
                 }
@@ -388,4 +388,11 @@ object TapLogger {
         }
         return false
     }
+
+    private fun Resources.getResName(id: Int): String? =
+            try {
+                getResourceName(id)
+            } catch (ex: Exception) {
+                null
+            }
 }
